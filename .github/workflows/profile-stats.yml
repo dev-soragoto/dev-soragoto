@@ -1,0 +1,98 @@
+name: Update profile stats
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0,4,8,12,16,20 * * *"
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/profile-stats.yml
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: profile-stats
+  cancel-in-progress: false
+
+jobs:
+  render:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Delete old workflow runs
+        uses: Mattraks/delete-workflow-runs@v2.1.0
+        continue-on-error: true
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 0
+          keep_minimum_runs: 5
+
+      - name: Check out profile repository
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: main
+
+      - name: Render stats - light
+        uses: stats-organization/github-readme-stats-action@v2.0.2
+        with:
+          card: stats
+          options: username=dev-soragoto&show_icons=true&theme=buefy&hide_border=true&hide_title=true
+          path: profile/stats-light.svg
+          token: ${{ secrets.GITHUB_TOKEN }}
+          core_version: "2.1.5"
+          fail_on_error: "true"
+
+      - name: Render stats - dark
+        uses: stats-organization/github-readme-stats-action@v2.0.2
+        with:
+          card: stats
+          options: username=dev-soragoto&show_icons=true&theme=github_dark&hide_border=true&hide_title=true
+          path: profile/stats-dark.svg
+          token: ${{ secrets.GITHUB_TOKEN }}
+          core_version: "2.1.5"
+          fail_on_error: "true"
+
+      - name: Render languages - light
+        uses: stats-organization/github-readme-stats-action@v2.0.2
+        with:
+          card: top-langs
+          options: username=dev-soragoto&layout=compact&langs_count=8&theme=buefy&hide_border=true&hide_title=true
+          path: profile/top-langs-light.svg
+          token: ${{ secrets.GITHUB_TOKEN }}
+          core_version: "2.1.5"
+          fail_on_error: "true"
+
+      - name: Render languages - dark
+        uses: stats-organization/github-readme-stats-action@v2.0.2
+        with:
+          card: top-langs
+          options: username=dev-soragoto&layout=compact&langs_count=8&theme=github_dark&hide_border=true&hide_title=true
+          path: profile/top-langs-dark.svg
+          token: ${{ secrets.GITHUB_TOKEN }}
+          core_version: "2.1.5"
+          fail_on_error: "true"
+
+      - name: Commit generated cards
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "soragoto@soragoto.io"
+          git add profile/stats-light.svg profile/stats-dark.svg \
+                  profile/top-langs-light.svg profile/top-langs-dark.svg
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "[bot]: update stats"
+          git pull --rebase origin main
+          git push origin HEAD:main
